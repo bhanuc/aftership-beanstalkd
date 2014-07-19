@@ -4,6 +4,7 @@ mongoose.connect(process.env.MONGOLAB_URI || 'mongodb://localhost/aftership');
 var Schema = mongoose.Schema;
 
 var courier = require('./courier');
+var workqueue = require('./workqueue');
 
 // MongoDB schema for each 'tracking'
 var trackingSchema = new Schema({
@@ -13,40 +14,16 @@ var trackingSchema = new Schema({
 });
 var Tracking = mongoose.model('Tracking', trackingSchema);
 
-// functions for making http requests to fetch tracking data
-var fetchUSPS = exports.fetchUSPS = function(tracking_number){
-  console.log('usps');
-
-  courier.usps(tracking_number, function(result){
+// make http request to fetch tracking data
+var fetchTracking = exports.fetchTracking = function(slug, tracking_number){
+  courier[slug](tracking_number, function(result){
     var newTracking = new Tracking(_.extend(result, {
-      slug: 'usps',
+      slug: slug,
       tracking_number: tracking_number
     }));
     saveToDB(newTracking);
   });
-};
-var fetchHKPOST = exports.fetchHKPOST = function(tracking_number){
-  console.log('hkpost');
-
-  courier.hkpost(tracking_number, function(result){
-    var newTracking = new Tracking(_.extend(result, {
-      slug: 'hkpost',
-      tracking_number: tracking_number
-    }));
-    saveToDB(newTracking);
-  });
-};
-var fetchDPDUK = exports.fetchDPDUK = function(tracking_number){
-  console.log('dpduk');
-
-  courier.dpduk(tracking_number, function(result){
-    var newTracking = new Tracking(_.extend(result, {
-      slug: 'dpduk',
-      tracking_number: tracking_number
-    }));
-    saveToDB(newTracking);
-  });
-};
+}
 
 // save tracking to database
 var saveToDB = function(newTracking){
@@ -82,3 +59,7 @@ var saveToDB = function(newTracking){
       }
     });
 };
+
+// workqueue.addRequestToQueue('usps', '9405903699300184125060');
+// workqueue.addRequestToQueue('hkpost', 'RC933607107HK');
+// workqueue.addRequestToQueue('dpduk', '15502370264989N');
