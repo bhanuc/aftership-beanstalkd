@@ -11,7 +11,7 @@ var formatTime = function(date){
 };
 
 var Courier = function() {
-  this.usps = function(tracking_number, callback) {
+  this.usps = function(tracking_number, successCB, errorCB) {
     var tracking_result = {};
 
     // options for USPS http request
@@ -55,9 +55,10 @@ var Courier = function() {
             checkpoint_time: checkpointTime
           });
 
-          callback(tracking_result);          
+          successCB(tracking_result);          
         }else{
-          // parcel not found
+          // parcel not found or error
+          errorCB();
         }
       });
     };
@@ -65,7 +66,7 @@ var Courier = function() {
 
   // TODO: Fix destination country parsing
   // TODO: distinguish between successful requests and failed ones
-  this.hkpost = function(tracking_number, callback) {
+  this.hkpost = function(tracking_number, successCB) {
     var tracking_result = {};
 
     // options for HKP http request
@@ -118,11 +119,11 @@ var Courier = function() {
         checkpoint_time: checkpointTime
       });
 
-      callback(tracking_result);
+      successCB(tracking_result);
     };
   };
 
-  this.dpduk = function(tracking_number, callback) {
+  this.dpduk = function(tracking_number, successCB, errorCB) {
     var tracking_result = {};
 
     // options for DPD UK http request
@@ -174,9 +175,10 @@ var Courier = function() {
         //reverse checkpoints array to make it oldest first
         tracking_result.checkpoints.reverse();
 
-        callback(tracking_result);
+        successCB(tracking_result);
       }else{
-        // parcel not found
+        // parcel not found or error
+        errorCB();
       }
     };
   };

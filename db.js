@@ -15,18 +15,20 @@ var trackingSchema = new Schema({
 var Tracking = mongoose.model('Tracking', trackingSchema);
 
 // make http request to fetch tracking data
-var fetchTracking = exports.fetchTracking = function(slug, tracking_number){
-  courier[slug](tracking_number, function(result){
-    var newTracking = new Tracking(_.extend(result, {
-      slug: slug,
-      tracking_number: tracking_number
-    }));
-    saveToDB(newTracking);
-  });
-}
+// var fetchTracking = exports.fetchTracking = function(slug, tracking_number){
+//   courier[slug](tracking_number, function(result){
+//     var tracking_result = _.extend(result, {
+//       slug: slug,
+//       tracking_number: tracking_number
+//     }));
+//     saveToDB(tracking_result);
+//   });
+// };
 
 // save tracking to database
-var saveToDB = function(newTracking){
+var saveToDB = exports.saveToDB = function(tracking_result){
+
+  var newTracking = new Tracking(tracking_result);
   
   Tracking.find(
     {tracking_number: newTracking.tracking_number},
