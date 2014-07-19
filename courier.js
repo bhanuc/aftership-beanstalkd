@@ -90,14 +90,14 @@ var Courier = function() {
         return el.length;
       });
       // purge data (cleared empty spaces)
-      var data = htmlData[3].split('\r\n');
+      var purgedData = htmlData[3].split('\r\n');
       
       // get country name from data
-      var countryNameData = data[data.length - 2].split(' ');
+      var countryNameData = purgedData[purgedData.length - 2].split(' ');
       var countryName = countryNameData[countryNameData.length - 1];
 
       // slice out appropriate message from data
-      var messageData = data[data.length - 1];
+      var messageData = purgedData[purgedData.length - 1];
       // hack: use trick to slice off tracking number from message
       var numberSlicePos = messageData.indexOf(tracking_number);
       var message = messageData.slice(0, numberSlicePos - 1) +
