@@ -1,9 +1,13 @@
+var fs = require('fs');
+var _ = require('underscore');
+var csv = require('csv');
+
 var fivebeans = require('fivebeans');
 var db = require('./db');
 
-var consumerClient = new fivebeans.client('127.0.0.1', 11300);
+var trackings = require('./sample_trackings').sampleTrackings;
 
-console.log(consumerClient);
+var consumerClient = new fivebeans.client('127.0.0.1', 11300);
 
 consumerClient
   .on('connect', function(){
@@ -62,12 +66,10 @@ producerClient
         console.log('put ' + jobid);
       });
     };
-    setTimeout(function(){
-      addRequestToQueue('usps', '9405903699300184125060');
-      addRequestToQueue('hkpost', 'RC933607107HK');
-      addRequestToQueue('dpduk', '15502370264989N');      
-    }, 1000);
-
+    _.each(trackings, function(tracking){
+      console.log(tracking);
+      addRequestToQueue(tracking[0], tracking[1]);
+    });
   })
   .on('error', function(err){
     console.error(err);

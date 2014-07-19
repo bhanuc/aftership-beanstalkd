@@ -59,7 +59,3 @@ var saveToDB = function(newTracking){
       }
     });
 };
-
-// workqueue.addRequestToQueue('usps', '9405903699300184125060');
-// workqueue.addRequestToQueue('hkpost', 'RC933607107HK');
-// workqueue.addRequestToQueue('dpduk', '15502370264989N');

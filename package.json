@@ -15,6 +15,7 @@
     "xml2js": "^0.4.4",
     "moment": "^2.7.0",
     "mongoose": "^3.8.13",
-    "fivebeans": "^1.1.1"
+    "fivebeans": "^1.1.1",
+    "csv": "^0.4.0"
   }
 }

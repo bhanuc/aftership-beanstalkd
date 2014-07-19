@@ -36,28 +36,35 @@ var Courier = function() {
     var processData = function(data){
       // parse the response XML body; function is synchronous
       parseString(data, function(err, result){
-        console.log(result);
-        var trackSummary = result.TrackResponse.TrackInfo[0].TrackSummary[0];
-        // can manipulate the array result.TrackResponse.TrackInfo[0].TrackDetail if more details are needed
+        if(result.TrackResponse.TrackInfo.TrackSummary){
+          // parcel found
 
-        // extract info from trackSummary
-        var countryName = trackSummary.EventCountry[0];
-        var message = trackSummary.Event[0];
-        var checkpointTime = formatTime(trackSummary.EventDate[0] + ' ' + trackSummary.EventTime[0]);
+          var trackSummary = result.TrackResponse.TrackInfo[0].TrackSummary[0];
+          // can manipulate the array result.TrackResponse.TrackInfo[0].TrackDetail if more details are needed
 
-        //fixit: need to accommodate multiple events
-        tracking_result.checkpoints = [];
-        tracking_result.checkpoints.push({
-          country_name: countryName,
-          message: message,
-          checkpoint_time: checkpointTime
-        });
+          // extract info from trackSummary
+          var countryName = trackSummary.EventCountry[0];
+          var message = trackSummary.Event[0];
+          var checkpointTime = formatTime(trackSummary.EventDate[0] + ' ' + trackSummary.EventTime[0]);
 
-        callback(tracking_result);
+          //fixit: need to accommodate multiple events
+          tracking_result.checkpoints = [];
+          tracking_result.checkpoints.push({
+            country_name: countryName,
+            message: message,
+            checkpoint_time: checkpointTime
+          });
+
+          callback(tracking_result);          
+        }else{
+          // parcel not found
+        }
       });
     };
   };
 
+  // TODO: Fix destination country parsing
+  // TODO: distinguish between successful requests and failed ones
   this.hkpost = function(tracking_number, callback) {
     var tracking_result = {};
 
@@ -142,29 +149,35 @@ var Courier = function() {
 
     var processData = function(data){
       // get JSON object from response data
-      var jsonData = JSON.parse(data).obj;
-      var trackingEvents = jsonData.trackingEvent;
 
-      // format the events data and push into tracking_result.checkpoints
-      tracking_result.checkpoints = [];
-      _.each(trackingEvents, function(event){
+      if(JSON.parse(data).obj){
+        // parcel found
+        var jsonData = JSON.parse(data).obj;
+        var trackingEvents = jsonData.trackingEvent;
 
-        // get data for each event
-        var countryName = event.trackingEventLocation;
-        var message = event.trackingEventStatus;
-        // hack: trick to slice out time zone to make test pass
-        var checkpointTime = event.trackingEventDate.slice(0, event.trackingEventDate.length - 5);
+        // format the events data and push into tracking_result.checkpoints
+        tracking_result.checkpoints = [];
+        _.each(trackingEvents, function(event){
 
-        tracking_result.checkpoints.push({
-          country_name: countryName,
-          message: message,
-          checkpoint_time: checkpointTime
-        });
-      })
-      //reverse checkpoints array to make it oldest first
-      tracking_result.checkpoints.reverse();
+          // get data for each event
+          var countryName = event.trackingEventLocation;
+          var message = event.trackingEventStatus;
+          // hack: trick to slice out time zone to make test pass
+          var checkpointTime = event.trackingEventDate.slice(0, event.trackingEventDate.length - 5);
 
-      callback(tracking_result);
+          tracking_result.checkpoints.push({
+            country_name: countryName,
+            message: message,
+            checkpoint_time: checkpointTime
+          });
+        })
+        //reverse checkpoints array to make it oldest first
+        tracking_result.checkpoints.reverse();
+
+        callback(tracking_result);
+      }else{
+        // parcel not found
+      }
     };
   };
 }
