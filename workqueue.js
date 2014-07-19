@@ -13,7 +13,7 @@ var addRequestToQueue = exports.addRequestToQueue = function(slug, tracking_numb
   delay = delay || 0;
   producerClient.use('aftership', function(){});
 
-  // hack: set ttr to 0 (ttr is key to responsiveness of new task; blocking?)
+  // HACK: set ttr to 0 (ttr is key to responsiveness of new task; blocking?)
   producerClient.put(1, delay, 0, JSON.stringify({
     slug: slug,
     tracking_number: tracking_number
@@ -28,14 +28,19 @@ var reserve = function(){
   consumerClient.use('aftership', function(){});
 
   consumerClient.reserve(function(err, jobid, payload){
+    console.log('reserved ' + jobid + ': ' + payload);
     // book next reserve; 0.5s per connection
     setTimeout(function(){
       // reserve next job (and make http request) after 0.5s
       reserve();
     }, 200);
 
+    // HACK: destroy job immediately after starting
+    consumerClient.destroy(jobid, function(){
+      console.log('destroyed ' + jobid);            
+    });
+
     if(jobid){
-      console.log('reserved ' + jobid + ': ' + payload);
       var payloadData = JSON.parse(payload);
       var startTime = new Date();
     
@@ -54,17 +59,19 @@ var reserve = function(){
           console.log('time taken for ' + jobid + ': ' + timeTaken);
 
           // destroy job after getting tracking result
-          consumerClient.destroy(jobid, function(){
-            console.log('destroyed ' + jobid);            
-          });
+          // consumerClient.destroy(jobid, function(){
+          //   console.log('destroyed ' + jobid);            
+          // });
         },
 
         // no parcel data or error
         function(err){
-          consumerClient.destroy(jobid, function(){
-            console.log('destroyed and 3hr replant ' + jobid);
-          });
-          addRequestToQueue(payloadData.slug, payloadData.tracking_result, 3);
+          // consumerClient.destroy(jobid, function(){
+          //   console.log('destroyed and 3hr replant ' + jobid);
+          // });
+
+          // add new job after 3 hours
+          addRequestToQueue(payloadData.slug, payloadData.tracking_result, 200);
         }
       );
     }

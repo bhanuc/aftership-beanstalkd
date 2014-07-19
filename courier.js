@@ -66,7 +66,7 @@ var Courier = function() {
 
   // TODO: Fix destination country parsing
   // TODO: distinguish between successful requests and failed ones
-  this.hkpost = function(tracking_number, successCB) {
+  this.hkpost = function(tracking_number, successCB, errorCB) {
     var tracking_result = {};
 
     // options for HKP http request
@@ -89,6 +89,7 @@ var Courier = function() {
 
     var processData = function(data){
       // use cheerio to convert response body to 'DOM object'
+      // console.log(String(data));
       var $ = cheerio.load(String(data));
 
       // get text from #clfContent div and split into array
@@ -99,27 +100,34 @@ var Courier = function() {
       var purgedData = htmlData[3].split('\r\n');
       
       // get country name from data
-      var countryNameData = purgedData[purgedData.length - 2].split(' ');
-      var countryName = countryNameData[countryNameData.length - 1];
+      var countryNameData = purgedData[purgedData.length - 2];
+      var countryName = countryNameData.slice(16);
 
       // slice out appropriate message from data
       var messageData = purgedData[purgedData.length - 1];
-      // hack: use trick to slice off tracking number from message
-      var numberSlicePos = messageData.indexOf(tracking_number);
-      var message = messageData.slice(0, numberSlicePos - 1) +
-        messageData.slice(numberSlicePos + tracking_number.length + 2, messageData.length - 1);
+      if(messageData){
+        // parcel found
 
-      // hack: get checkpoint time from message
-      var checkpointTime = formatTime(message.slice(message.length - 12, message.length - 1));
+        // hack: use trick to slice off tracking number from message
+        var numberSlicePos = messageData.indexOf(tracking_number);
+        var message = messageData.slice(0, numberSlicePos - 1) +
+          messageData.slice(numberSlicePos + tracking_number.length + 2, messageData.length - 1);
 
-      tracking_result.checkpoints = [];
-      tracking_result.checkpoints.push({
-        country_name: countryName,
-        message: message,
-        checkpoint_time: checkpointTime
-      });
+        // hack: get checkpoint time from message
+        var checkpointTime = formatTime(message.slice(message.length - 12, message.length - 1));
 
-      successCB(tracking_result);
+        tracking_result.checkpoints = [];
+        tracking_result.checkpoints.push({
+          country_name: countryName,
+          message: message,
+          checkpoint_time: checkpointTime
+        });
+
+        successCB(tracking_result); 
+      }else{
+        // parcel not found or error
+        errorCB();
+      }
     };
   };
 
@@ -185,3 +193,7 @@ var Courier = function() {
 }
 
 module.exports = new Courier();
+
+// new Courier().hkpost('RC500313784HK', function(result){
+//   console.log(result);
+// });
