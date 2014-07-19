@@ -55,9 +55,7 @@ var Courier = function() {
 
         callback(tracking_result);
       });
-
     };
-
   };
 
   this.hkpost = function(tracking_number, callback) {
@@ -142,10 +140,6 @@ var Courier = function() {
       console.error(err);
     });
 
-    // // synchronous (blocking) http request
-    // var request = httpSync.request(options);
-    // var response = request.end();
-
     var processData = function(data){
       // get JSON object from response data
       var jsonData = JSON.parse(data).obj;
@@ -167,7 +161,6 @@ var Courier = function() {
           checkpoint_time: checkpointTime
         });
       })
-      
       //reverse checkpoints array to make it oldest first
       tracking_result.checkpoints.reverse();
 
