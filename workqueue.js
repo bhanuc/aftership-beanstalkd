@@ -57,7 +57,12 @@ var reserve = function(client){
 
           var endTime = new Date();
           var timeTaken = endTime - startTime;
-          console.log('time taken for ' + jobid + ': ' + timeTaken);
+          var logText = 'Slug: ' + payloadData.slug
+            + ', Tracking Number: ' + payloadData.tracking_number
+            + ', Time Taken: ' + timeTaken + 'ms' + '\n'
+          fs.appendFile('jobslog.txt', logText, function(err){
+            if(err){console.error('LOG ERROR: ' + err);}
+          });
 
           // destroy job after getting tracking result?
         },
