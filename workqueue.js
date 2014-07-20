@@ -30,11 +30,23 @@ var reserve = function(client){
 
   client.reserve(function(err, jobid, payload){
     console.log('reserved ' + jobid + ': ' + payload);
-    // book next reserve; 0.5s per connection
-    setTimeout(function(){
-      // reserve next job (and make http request) after 0.5s
-      reserve(client);
-    }, 200);
+
+    client.usedTokens++;
+
+    // leaky bucket implementation: if there are 20 or more connections, delay 0.5s per connection;
+    // else, make the http request immediately
+    if(client.usedTokens < 20){
+      // if bucket not full, reserve next job immediately
+      setTimeout(function(){
+        reserve(client);        
+      }, 10);
+    }else{
+      // book next reserve; 0.5s per connection
+      setTimeout(function(){
+        // reserve next job (and make http request) after 0.5s
+        reserve(client);
+      }, 500);
+    }
 
     // HACK: destroy job immediately after starting
     client.destroy(jobid, function(){
@@ -57,12 +69,15 @@ var reserve = function(client){
 
           var endTime = new Date();
           var timeTaken = endTime - startTime;
-          var logText = 'Slug: ' + payloadData.slug
+          var logText = 'Job ' + jobid
+            + ', Slug: ' + payloadData.slug
             + ', Tracking Number: ' + payloadData.tracking_number
-            + ', Time Taken: ' + timeTaken + 'ms' + '\n'
+            + ', Time Taken: ' + timeTaken + 'ms\n'
           fs.appendFile('jobslog.txt', logText, function(err){
             if(err){console.error('LOG ERROR: ' + err);}
           });
+
+          client.usedTokens--;
 
           // destroy job after getting tracking result?
         },
@@ -73,6 +88,7 @@ var reserve = function(client){
 
           // add new job after 3 hours
           addRequestToQueue(payloadData.slug, payloadData.tracking_result, 10800);
+          client.usedTokens--;
         }
       );
     }
@@ -108,6 +124,9 @@ var dpdukConsumerClient = new fivebeans.client('127.0.0.1', 11300);
 dpdukConsumerClient.on('connect', function(){
   console.log('dpdukConsumerClient connect');
   dpdukConsumerClient.watch('dpduk', function(){});
+  this.usedTokens = 0;
+  console.log('UT');
+  console.log(dpdukConsumerClient.usedTokens);
   reserve(dpdukConsumerClient);
 })
 .on('error', function(err){
@@ -122,6 +141,7 @@ var hkpostConsumerClient = new fivebeans.client('127.0.0.1', 11300);
 hkpostConsumerClient.on('connect', function(){
   console.log('hkpostConsumerClient connect');
   hkpostConsumerClient.watch('hkpost', function(){});
+  this.usedTokens = 0;
   reserve(hkpostConsumerClient);
 })
 .on('error', function(err){
@@ -136,6 +156,7 @@ var uspsConsumerClient = new fivebeans.client('127.0.0.1', 11300);
 uspsConsumerClient.on('connect', function(){
   console.log('uspsConsumerClient connect');
   uspsConsumerClient.watch('usps', function(){});
+  this.usedTokens = 0;
   reserve(uspsConsumerClient);
 })
 .on('error', function(err){
