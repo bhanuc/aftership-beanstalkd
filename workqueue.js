@@ -11,7 +11,9 @@ var trackings = require('./sample_trackings').sampleTrackings;
 var addRequestToQueue = exports.addRequestToQueue = function(slug, tracking_number, delay){
   // (priority, delay, ttr, payload, cb)
   delay = delay || 0;
-  producerClient.use('aftership', function(){});
+
+  // producerClient.use(slug, function(){});
+  producerClient.use(slug, function(){});
 
   // HACK: set ttr to 0 (ttr is key to responsiveness of new task; blocking?)
   producerClient.put(1, delay, 0, JSON.stringify({
@@ -23,20 +25,19 @@ var addRequestToQueue = exports.addRequestToQueue = function(slug, tracking_numb
   });
 };
 
-var reserve = function(){
+var reserve = function(client){
   console.log('reserve');
-  consumerClient.use('aftership', function(){});
 
-  consumerClient.reserve(function(err, jobid, payload){
+  client.reserve(function(err, jobid, payload){
     console.log('reserved ' + jobid + ': ' + payload);
     // book next reserve; 0.5s per connection
     setTimeout(function(){
       // reserve next job (and make http request) after 0.5s
-      reserve();
+      reserve(client);
     }, 200);
 
     // HACK: destroy job immediately after starting
-    consumerClient.destroy(jobid, function(){
+    client.destroy(jobid, function(){
       console.log('destroyed ' + jobid);            
     });
 
@@ -58,17 +59,12 @@ var reserve = function(){
           var timeTaken = endTime - startTime;
           console.log('time taken for ' + jobid + ': ' + timeTaken);
 
-          // destroy job after getting tracking result
-          // consumerClient.destroy(jobid, function(){
-          //   console.log('destroyed ' + jobid);            
-          // });
+          // destroy job after getting tracking result?
         },
 
         // no parcel data or error
         function(err){
-          // consumerClient.destroy(jobid, function(){
-          //   console.log('destroyed and 3hr replant ' + jobid);
-          // });
+          // destroy job here?
 
           // add new job after 3 hours
           addRequestToQueue(payloadData.slug, payloadData.tracking_result, 200);
@@ -76,38 +72,14 @@ var reserve = function(){
       );
     }
   });
+
 };
-
-var consumerClient = new fivebeans.client('127.0.0.1', 11300);
-
-consumerClient
-  .on('connect', function(){
-    console.log('consumerClient connect');
-    consumerClient.use('aftership', function(err, tubename){
-      console.log('use ' + tubename);
-    });
-    consumerClient.watch('aftership', function(err, tubename){
-      console.log('watch ' + tubename);
-    });
-
-    reserve();
-  })
-  .on('error', function(err){
-    console.error(err);
-  })
-  .on('close', function(){
-    console.log('close');
-  })
-  .connect();
 
 var producerClient = new fivebeans.client('127.0.0.1', 11300);
 
 producerClient
   .on('connect', function(){
     console.log('producerClient connect');
-    producerClient.use('aftership', function(err, tubename){
-      console.log('use ' + tubename);
-    });
 
     _.each(trackings, function(tracking){
       addRequestToQueue(tracking[0], tracking[1]);
@@ -126,3 +98,45 @@ producerClient
     console.log('close');
   })
   .connect();
+
+var dpdukConsumerClient = new fivebeans.client('127.0.0.1', 11300);
+dpdukConsumerClient.on('connect', function(){
+  console.log('dpdukConsumerClient connect');
+  dpdukConsumerClient.watch('dpduk', function(){});
+  reserve(dpdukConsumerClient);
+})
+.on('error', function(err){
+  console.error(err);
+})
+.on('close', function(){
+  console.log('close');
+})
+.connect();
+
+var hkpostConsumerClient = new fivebeans.client('127.0.0.1', 11300);
+hkpostConsumerClient.on('connect', function(){
+  console.log('hkpostConsumerClient connect');
+  hkpostConsumerClient.watch('hkpost', function(){});
+  reserve(hkpostConsumerClient);
+})
+.on('error', function(err){
+  console.error(err);
+})
+.on('close', function(){
+  console.log('close');
+})
+.connect();
+
+var uspsConsumerClient = new fivebeans.client('127.0.0.1', 11300);
+uspsConsumerClient.on('connect', function(){
+  console.log('uspsConsumerClient connect');
+  uspsConsumerClient.watch('usps', function(){});
+  reserve(uspsConsumerClient);
+})
+.on('error', function(err){
+  console.error(err);
+})
+.on('close', function(){
+  console.log('close');
+})
+.connect();
