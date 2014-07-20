@@ -67,7 +67,7 @@ var reserve = function(client){
           // destroy job here?
 
           // add new job after 3 hours
-          addRequestToQueue(payloadData.slug, payloadData.tracking_result, 200);
+          addRequestToQueue(payloadData.slug, payloadData.tracking_result, 10800);
         }
       );
     }
