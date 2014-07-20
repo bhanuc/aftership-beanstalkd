@@ -12,7 +12,6 @@ var addRequestToQueue = exports.addRequestToQueue = function(slug, tracking_numb
   // (priority, delay, ttr, payload, cb)
   delay = delay || 0;
 
-  // producerClient.use(slug, function(){});
   producerClient.use(slug, function(){});
 
   // HACK: set ttr to 0 (ttr is key to responsiveness of new task; blocking?)
@@ -78,14 +77,10 @@ var reserve = function(client){
           });
 
           client.usedTokens--;
-
-          // destroy job after getting tracking result?
         },
 
         // no parcel data or error
         function(err){
-          // destroy job here?
-
           // add new job after 3 hours
           addRequestToQueue(payloadData.slug, payloadData.tracking_result, 10800);
           client.usedTokens--;
@@ -105,12 +100,6 @@ producerClient
     _.each(trackings, function(tracking){
       addRequestToQueue(tracking[0], tracking[1]);
     });
-
-    // setTimeout(function(){
-    //   _.each(trackings, function(tracking){
-    //     addRequestToQueue(tracking[0], tracking[1]);
-    //   });
-    // }, 15000);
   })
   .on('error', function(err){
     console.error(err);
