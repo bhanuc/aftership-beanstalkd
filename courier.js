@@ -64,8 +64,6 @@ var Courier = function() {
     };
   };
 
-  // TODO: Fix destination country parsing
-  // TODO: distinguish between successful requests and failed ones
   this.hkpost = function(tracking_number, successCB, errorCB) {
     var tracking_result = {};
 
@@ -193,7 +191,3 @@ var Courier = function() {
 }
 
 module.exports = new Courier();
-
-// new Courier().hkpost('RC500313784HK', function(result){
-//   console.log(result);
-// });

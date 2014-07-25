@@ -3,10 +3,14 @@ var _ = require('underscore');
 var csv = require('csv');
 
 var fivebeans = require('fivebeans');
+var RateLimiter = require('limiter').RateLimiter;
 var db = require('./db');
 var courier = require('./courier');
 
 var trackings = require('./sample_trackings').sampleTrackings;
+
+// common limiter if overall rate limit of 2 per second is enforced
+// var limiter = new RateLimiter(2, 'second');
 
 var addRequestToQueue = exports.addRequestToQueue = function(slug, tracking_number, delay){
   // (priority, delay, ttr, payload, cb)
@@ -20,7 +24,7 @@ var addRequestToQueue = exports.addRequestToQueue = function(slug, tracking_numb
     tracking_number: tracking_number
   }),
   function(err, jobid){
-    console.log('put ' + jobid);
+    console.log('put job ' + jobid);
   });
 };
 
@@ -28,35 +32,33 @@ var reserve = function(client){
   console.log('reserve');
 
   client.reserve(function(err, jobid, payload){
-    console.log('reserved ' + jobid + ': ' + payload);
+    console.log('reserved job ' + jobid + ': ' + payload);
 
-    client.usedTokens++;
+    client.availableTokens--;
 
-    // leaky bucket implementation: if there are 20 or more connections, delay 0.5s per connection;
-    // else, make the http request immediately
-    if(client.usedTokens < 20){
-      // if bucket not full, reserve next job immediately
-      setTimeout(function(){
-        reserve(client);        
-      }, 10);
-    }else{
-      // book next reserve; 0.5s per connection
-      setTimeout(function(){
-        // reserve next job (and make http request) after 0.5s
+    // HACK: use an 1ms setTimeout to get the next client.reserve triggered
+    // (somehow does not work without this...)
+    setTimeout(function(){
+      if(client.availableTokens > 0){
+        // if the token bucket of 20 is not full yet, reserve job immediately
         reserve(client);
-      }, 500);
-    }
+      }else{
+        // if bucket is full, throttle job according to refill rate
+        client.limiter.removeTokens(1, function(err, remainingRequests){
+          reserve(client);
+        });
+      }
+    }, 1);
 
     // HACK: destroy job immediately after starting
     client.destroy(jobid, function(){
-      console.log('destroyed ' + jobid);            
+      console.log('destroyed job ' + jobid);            
     });
 
     if(jobid){
       var payloadData = JSON.parse(payload);
       var startTime = new Date();
     
-      // work: send http request
       courier[payloadData.slug](payloadData.tracking_number,
         // successfully received parcel data
         function(result){
@@ -65,6 +67,7 @@ var reserve = function(client){
             tracking_number: payloadData.tracking_number
           });
           db.saveToDB(tracking_result);
+          console.log('saved to DB job ' + jobid);
 
           var endTime = new Date();
           var timeTaken = endTime - startTime;
@@ -75,29 +78,34 @@ var reserve = function(client){
           fs.appendFile('jobslog.txt', logText, function(err){
             if(err){console.error('LOG ERROR: ' + err);}
           });
-
-          client.usedTokens--;
         },
 
         // no parcel data or error
         function(err){
-          // add new job after 3 hours
+          // add back the same job which is delayed for 3 hours
+          console.log('delayed task for failed request');
           addRequestToQueue(payloadData.slug, payloadData.tracking_result, 10800);
-          client.usedTokens--;
         }
       );
     }
   });
-
 };
 
-var producerClient = new fivebeans.client('127.0.0.1', 11300);
+// use object to keep track of current couriers with its own client
+var couriers = {};
 
+// use a producer client to put all the trackings onto the work queue
+var producerClient = new fivebeans.client('127.0.0.1', 11300);
 producerClient
   .on('connect', function(){
     console.log('producerClient connect');
 
     _.each(trackings, function(tracking){
+      if(!(tracking[0] in couriers)){
+        couriers[tracking[0]] = true;
+        // dynamically add courier consumer client when new courier is found on list
+        addCourierClient(tracking[0]);
+      }
       addRequestToQueue(tracking[0], tracking[1]);
     });
   })
@@ -109,49 +117,22 @@ producerClient
   })
   .connect();
 
-var dpdukConsumerClient = new fivebeans.client('127.0.0.1', 11300);
-dpdukConsumerClient.on('connect', function(){
-  console.log('dpdukConsumerClient connect');
-  dpdukConsumerClient.watch('dpduk', function(){});
-  this.usedTokens = 0;
-  console.log('UT');
-  console.log(dpdukConsumerClient.usedTokens);
-  reserve(dpdukConsumerClient);
-})
-.on('error', function(err){
-  console.error(err);
-})
-.on('close', function(){
-  console.log('close');
-})
-.connect();
-
-var hkpostConsumerClient = new fivebeans.client('127.0.0.1', 11300);
-hkpostConsumerClient.on('connect', function(){
-  console.log('hkpostConsumerClient connect');
-  hkpostConsumerClient.watch('hkpost', function(){});
-  this.usedTokens = 0;
-  reserve(hkpostConsumerClient);
-})
-.on('error', function(err){
-  console.error(err);
-})
-.on('close', function(){
-  console.log('close');
-})
-.connect();
-
-var uspsConsumerClient = new fivebeans.client('127.0.0.1', 11300);
-uspsConsumerClient.on('connect', function(){
-  console.log('uspsConsumerClient connect');
-  uspsConsumerClient.watch('usps', function(){});
-  this.usedTokens = 0;
-  reserve(uspsConsumerClient);
-})
-.on('error', function(err){
-  console.error(err);
-})
-.on('close', function(){
-  console.log('close');
-})
-.connect();
+// function to add new courier consumer client to consume the courier's jobs
+var addCourierClient = function(courier){
+  var consumerClient = new fivebeans.client('127.0.0.1', 11300);
+  consumerClient.on('connect', function(){
+    console.log(courier + ' consumerClient connect');
+    consumerClient.watch(courier, function(){});
+    this.availableTokens = 20;
+    // each courier has its own private limiter of 2 requests per second
+    this.limiter = new RateLimiter(2, 'second');
+    reserve(consumerClient);
+  })
+  .on('error', function(err){
+    console.error(err);
+  })
+  .on('close', function(){
+    console.log('close');
+  })
+  .connect();
+};
